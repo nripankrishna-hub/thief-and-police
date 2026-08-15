@@ -61,31 +61,55 @@
             </div>
         </section>
 
-        <!-- Game Screen (Rummy Table Layout) -->
+        <!-- Game Screen -->
         <section id="game-screen" class="screen">
-            <div id="table-container">
-                <!-- Center Deck -->
-                <div id="deck-area">
-                    <div class="deck-card face-down"></div>
-                    <div class="deck-card face-down deck-offset-1"></div>
-                    <div class="deck-card face-down deck-offset-2"></div>
-                </div>
-                
-                <!-- Action Banner -->
-                <div id="action-banner" class="hidden">
-                    <h2 class="glow-text">CATCH THE THIEF!</h2>
+            <div class="game-layout">
+                <div class="game-table-column">
+                    <div id="table-container">
+                        <!-- Center Deck -->
+                        <div id="deck-area">
+                            <div class="deck-card face-down"></div>
+                            <div class="deck-card face-down deck-offset-1"></div>
+                            <div class="deck-card face-down deck-offset-2"></div>
+                        </div>
+                        
+                        <!-- Action Banner -->
+                        <div id="action-banner" class="hidden">
+                            <h2 class="glow-text">CATCH THE THIEF!</h2>
+                        </div>
+                        
+                        <button id="btn-in-game-finish" class="btn primary-btn glow-btn hidden" style="position: absolute; bottom: 20px; left: 20px; z-index: 100; width: auto; font-size: 0.9rem; padding: 10px 20px;">Finish Game</button>
+
+                        <!-- Players will be dynamically positioned here -->
+                        <div id="seats-container"></div>
+                    </div>
                 </div>
 
-                <!-- Scoreboard (Collapsible/Fixed) -->
-                <div class="mini-scoreboard glass-panel">
-                    <h3>Scores</h3>
-                    <ul id="game-leaderboard" class="mini-leaderboard-list"></ul>
-                </div>
+                <!-- Dedicated Sidebar -->
+                <aside class="game-sidebar glass-panel">
+                    <div class="sidebar-section scoreboard-section">
+                        <h3>Scores</h3>
+                        <ul id="game-leaderboard" class="mini-leaderboard-list"></ul>
+                    </div>
 
-                <button id="btn-in-game-finish" class="btn primary-btn glow-btn hidden" style="position: absolute; bottom: 20px; right: 20px; z-index: 100; width: auto; font-size: 0.9rem; padding: 10px 20px;">Finish Game</button>
-
-                <!-- Players will be dynamically positioned here -->
-                <div id="seats-container"></div>
+                    <div class="sidebar-section chat-section">
+                        <div class="reactions-bar">
+                            <button class="btn-emote" data-emote="👍">👍</button>
+                            <button class="btn-emote" data-emote="😂">😂</button>
+                            <button class="btn-emote" data-emote="😱">😱</button>
+                            <button class="btn-emote" data-emote="🚓">🚓</button>
+                            <button class="btn-emote" data-emote="💰">💰</button>
+                            <button class="btn-emote" data-emote="👑">👑</button>
+                        </div>
+                        <div id="chat-messages" class="chat-messages">
+                            <div class="chat-system-msg">System: Welcome to Thief & Police chat!</div>
+                        </div>
+                        <form id="chat-form" class="chat-form">
+                            <input type="text" id="chat-input" placeholder="Type..." autocomplete="off">
+                            <button type="submit" class="btn primary-btn">Send</button>
+                        </form>
+                    </div>
+                </aside>
             </div>
         </section>
 

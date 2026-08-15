@@ -29,6 +29,25 @@ const btnCreate = document.getElementById('btn-create-room');
 const inputRoomCode = document.getElementById('room-code-input');
 const btnJoin = document.getElementById('btn-join-room');
 
+function rejoinRoom(code, name) {
+    document.getElementById('room-code').value = code;
+    document.getElementById('player-name').value = name;
+    joinRoom();
+}
+
+function deleteRoom(code) {
+    if (confirm("Are you sure you want to delete Room " + code + "?")) {
+        socket.emit('delete_room', code);
+    }
+}
+
+socket.on('room_deleted', () => {
+    showToast("The host has deleted this room.", "error");
+    setTimeout(() => {
+        location.reload();
+    }, 2000);
+});
+
 // Lobby
 const displayRoomCode = document.getElementById('display-room-code');
 const lobbyPlayersList = document.getElementById('lobby-players-list');
@@ -43,6 +62,12 @@ const gameLeaderboard = document.getElementById('game-leaderboard');
 
 // Round End / Continuous
 const btnInGameFinish = document.getElementById('btn-in-game-finish');
+
+// Chat & Reactions
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const chatMessages = document.getElementById('chat-messages');
+const emoteButtons = document.querySelectorAll('.btn-emote');
 
 // Game Over
 const winnerNameDisplay = document.getElementById('winner-name');
@@ -179,9 +204,64 @@ btnInGameFinish.addEventListener('click', () => {
     socket.emit('finish_game', currentRoomCode);
 });
 btnBackToLobby.addEventListener('click', () => {
-    currentRoomCode = null;
-    isHost = false;
-    showScreen('landing');
+    // Basic reload for now
+    window.location.reload();
+});
+
+// Chat & Reactions Events
+chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const msg = chatInput.value.trim();
+    if (!msg || !gameInProgress) return;
+    
+    socket.emit('chat_message', { roomCode: currentRoomCode, message: msg });
+    chatInput.value = '';
+});
+
+emoteButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (!gameInProgress) return;
+        const emote = btn.getAttribute('data-emote');
+        socket.emit('reaction', { roomCode: currentRoomCode, emote });
+    });
+});
+
+// Real-time Chat
+socket.on('chat_message', (data) => {
+    const { sender, message } = data;
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-msg';
+    msgEl.innerHTML = `<span class="chat-msg-sender">${sender}:</span><span class="chat-msg-text">${message}</span>`;
+    chatMessages.appendChild(msgEl);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+// Real-time Reactions
+socket.on('reaction', (data) => {
+    const { sender, emote } = data;
+    
+    const emoteEl = document.createElement('div');
+    emoteEl.className = 'floating-emote';
+    emoteEl.textContent = emote;
+    
+    // Add name tag
+    const nameEl = document.createElement('div');
+    nameEl.className = 'floating-emote-name';
+    nameEl.textContent = sender;
+    emoteEl.appendChild(nameEl);
+    
+    // Random horizontal position for visual variety
+    const randomLeft = 10 + Math.random() * 80; // 10% to 90%
+    emoteEl.style.left = `${randomLeft}%`;
+    
+    document.body.appendChild(emoteEl);
+    
+    // Remove after animation (2.5s)
+    setTimeout(() => {
+        if (emoteEl.parentNode) {
+            emoteEl.parentNode.removeChild(emoteEl);
+        }
+    }, 2500);
 });
 
 socket.on('connect', () => {
@@ -223,7 +303,11 @@ socket.on('available_rooms', (roomsList) => {
         } else {
             html += `<span style="font-size:0.8rem; color:#f87171;">In Progress</span>`;
         }
-        
+
+        if (r.isHost) {
+            html += `<button class="btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto; background-color: #ef4444; color: white; margin-left: 10px;" onclick="deleteRoom('${r.roomCode}')">Delete</button>`;
+        }
+
         li.innerHTML = html;
         list.appendChild(li);
     });
@@ -310,8 +394,8 @@ socket.on('round_started', (data) => {
 
     // Create other player seats along an arc (ellipse)
     const totalOthers = otherPlayers.length;
-    const a = 40; // x-radius % (e.g. 50% +- 40%)
-    const b = 30; // y-radius % (e.g. 50% +- 30%)
+    const a = 28; // x-radius % (e.g. 50% +- 28%)
+    const b = 25; // y-radius % (e.g. 50% +- 25%)
     const yCenter = 45;
     const xCenter = 50;
     
@@ -476,7 +560,7 @@ socket.on('round_ended', (results) => {
 socket.on('game_finished', (data) => {
     const { winners, players } = data;
     
-    winnerNameDisplay.textContent = winners.map(w => w.name).join(' & ');
+    winnerNameDisplay.innerHTML = `🏆 ${winners.map(w => w.name).join(' & ')} 🏆`;
     renderLeaderboard(players, finalLeaderboard);
     
     showScreen('gameOver');

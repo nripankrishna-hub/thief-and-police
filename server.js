@@ -76,12 +76,14 @@ io.on('connection', (socket) => {
             const hasReconnectSlot = room.players.some(p => p.id === clientPlayerId && !p.connected && !p.isBot);
             
             if (room.state === 'lobby' || hasReconnectSlot) {
+                const isHost = room.hostPlayerId === clientPlayerId;
                 availableRooms.push({
                     roomCode: code,
                     state: room.state,
                     playerCount: room.players.length,
                     hasReconnectSlot: hasReconnectSlot,
-                    reconnectName: hasReconnectSlot ? room.players.find(p => p.id === clientPlayerId).name : null
+                    reconnectName: hasReconnectSlot ? room.players.find(p => p.id === clientPlayerId).name : null,
+                    isHost: isHost
                 });
             }
         }
@@ -359,10 +361,63 @@ io.on('connection', (socket) => {
              }
          });
 
+         const publicPlayersData = room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            score: p.score,
+            role: p.role,
+            isHost: p.isHost,
+            connected: p.connected
+        }));
+
          io.to(roomCode).emit('game_finished', {
-             winners: winners,
-             players: room.players // Final scoreboard
+             winners: winners.map(w => ({ id: w.id, name: w.name, score: w.score })),
+             players: publicPlayersData
          });
+         
+         // Delete room when game finishes as requested
+         setTimeout(() => {
+             delete rooms[roomCode];
+             io.emit('available_rooms', []); // Simplistic way to trigger refresh for lobbys, though sendAvailableRooms is better. Actually, just let them request.
+         }, 1000);
+    });
+
+    socket.on('delete_room', (roomCode) => {
+        const room = rooms[roomCode];
+        const user = socketMap[socket.id];
+        if (!room || !user || room.hostPlayerId !== user.playerId) return;
+
+        io.to(roomCode).emit('room_deleted');
+        delete rooms[roomCode];
+        sendAvailableRooms(socket, user.playerId); // Update host's UI
+    });
+
+    socket.on('chat_message', (data) => {
+        const { roomCode, message } = data;
+        const user = socketMap[socket.id];
+        if (!user || !rooms[roomCode]) return;
+        
+        const player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        if (!player) return;
+
+        io.to(roomCode).emit('chat_message', {
+            sender: player.name,
+            message: message
+        });
+    });
+
+    socket.on('reaction', (data) => {
+        const { roomCode, emote } = data;
+        const user = socketMap[socket.id];
+        if (!user || !rooms[roomCode]) return;
+        
+        const player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        if (!player) return;
+
+        io.to(roomCode).emit('reaction', {
+            sender: player.name,
+            emote: emote
+        });
     });
 
     socket.on('disconnect', () => {
