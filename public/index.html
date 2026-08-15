@@ -27,11 +27,14 @@
                     
                     <div class="divider"><span>OR</span></div>
                     
-                    <div class="join-group">
-                        <input type="text" id="room-code-input" placeholder="Room Code" class="glass-input small" maxlength="5">
-                        <button id="btn-join-room" class="btn secondary-btn">Join</button>
-                    </div>
+                    <input type="text" id="room-code-input" placeholder="Room Code (e.g. A1B2)" class="glass-input small uppercase-input" maxlength="4">
+                    <button id="btn-join-room" class="btn secondary-btn">Join Game</button>
                 </div>
+            </div>
+            
+            <div id="available-rooms-container" class="glass-panel hidden" style="margin-top: 20px;">
+                <h3 style="margin-top:0; text-align:center; color: #a5b4fc;">Available Rooms</h3>
+                <ul id="available-rooms-list" class="rooms-list" style="list-style: none; padding: 0; margin: 0;"></ul>
             </div>
         </section>
 
@@ -79,39 +82,10 @@
                     <ul id="game-leaderboard" class="mini-leaderboard-list"></ul>
                 </div>
 
+                <button id="btn-in-game-finish" class="btn primary-btn glow-btn hidden" style="position: absolute; bottom: 20px; right: 20px; z-index: 100; width: auto; font-size: 0.9rem; padding: 10px 20px;">Finish Game</button>
+
                 <!-- Players will be dynamically positioned here -->
                 <div id="seats-container"></div>
-            </div>
-        </section>
-
-        <!-- Round End Screen -->
-        <section id="round-end-screen" class="screen">
-            <h2 id="result-title" class="glow-text title">Round Over</h2>
-            
-            <div class="glass-panel results-panel">
-                <div id="guess-result" class="result-highlight">
-                    <!-- e.g., "The Police guessed correctly!" -->
-                </div>
-
-                <div class="reveal-roles">
-                    <h3>Roles Revealed</h3>
-                    <ul id="revealed-roles-list" class="roles-list">
-                        <!-- e.g. "John was the Thief" -->
-                    </ul>
-                </div>
-
-                <div class="updated-scores">
-                    <h3>Current Scores</h3>
-                    <ul id="end-leaderboard" class="leaderboard-list">
-                        <!-- Scores here -->
-                    </ul>
-                </div>
-
-                <div class="host-controls">
-                    <p id="end-waiting-msg" class="info-text">Waiting for host to continue...</p>
-                    <button id="btn-next-round" class="btn primary-btn glow-btn hidden">Next Round</button>
-                    <button id="btn-finish-game" class="btn secondary-btn hidden" style="margin-top: 10px;">Finish Game</button>
-                </div>
             </div>
         </section>
 

@@ -416,6 +416,13 @@ h1, h2, h3 {
     margin-bottom: 5px;
 }
 
+.role-image {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    margin-bottom: 5px;
+}
+
 .card-front .role-title {
     font-size: 0.7rem;
     font-weight: 800;
@@ -425,22 +432,11 @@ h1, h2, h3 {
 
 /* Specific Role Styles */
 .role-police .card-front { border-color: var(--police-color); box-shadow: 0 0 15px var(--police-color); }
-.role-police .card-front i { color: var(--police-color); }
-
 .role-thief .card-front { border-color: var(--thief-color); box-shadow: 0 0 15px var(--thief-color); }
-.role-thief .card-front i { color: var(--thief-color); }
-
 .role-king .card-front { border-color: #fbbf24; }
-.role-king .card-front i { color: #fbbf24; }
-
 .role-queen .card-front { border-color: #f472b6; }
-.role-queen .card-front i { color: #f472b6; }
-
 .role-merchant .card-front { border-color: #10b981; }
-.role-merchant .card-front i { color: #10b981; }
-
 .role-civilian .card-front { border-color: #9ca3af; }
-.role-civilian .card-front i { color: #9ca3af; }
 
 .player-name-tag {
     background: rgba(0,0,0,0.7);
@@ -457,7 +453,7 @@ h1, h2, h3 {
     width: 100px;
     height: 150px;
 }
-.seat-local .card-front i { font-size: 3.5rem; }
+.seat-local .role-image { width: 80px; height: 80px; }
 .seat-local .card-front .role-title { font-size: 0.9rem; }
 .seat-local .player-name-tag { font-size: 1rem; border-color: var(--primary-color); }
 

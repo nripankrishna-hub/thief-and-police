@@ -69,6 +69,29 @@ function broadcastGameState(roomCode) {
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
+    function sendAvailableRooms(targetSocket, clientPlayerId) {
+        const availableRooms = [];
+        for (const code in rooms) {
+            const room = rooms[code];
+            const hasReconnectSlot = room.players.some(p => p.id === clientPlayerId && !p.connected && !p.isBot);
+            
+            if (room.state === 'lobby' || hasReconnectSlot) {
+                availableRooms.push({
+                    roomCode: code,
+                    state: room.state,
+                    playerCount: room.players.length,
+                    hasReconnectSlot: hasReconnectSlot,
+                    reconnectName: hasReconnectSlot ? room.players.find(p => p.id === clientPlayerId).name : null
+                });
+            }
+        }
+        targetSocket.emit('available_rooms', availableRooms);
+    }
+
+    socket.on('request_available_rooms', (clientPlayerId) => {
+        sendAvailableRooms(socket, clientPlayerId);
+    });
+
     socket.on('create_room', (data, callback) => {
         const { playerName, playerId } = data;
         let roomCode = generateRoomCode();
@@ -78,7 +101,8 @@ io.on('connection', (socket) => {
         
         rooms[roomCode] = {
             roomCode: roomCode,
-            state: 'lobby', // 'lobby', 'playing', 'round_end'
+            state: 'lobby', // 'lobby', 'playing', 'game_over'
+            roundNumber: 0,
             players: [],
             hostPlayerId: playerId,
             policePlayerId: null,
@@ -138,6 +162,7 @@ io.on('connection', (socket) => {
                     connected: p.connected
                 }));
                 socket.emit('round_started', {
+                    roundNumber: room.roundNumber,
                     myRole: existingPlayer.role,
                     policeId: room.policePlayerId,
                     players: publicPlayersData
@@ -172,10 +197,58 @@ io.on('connection', (socket) => {
         broadcastGameState(roomCode);
     });
 
-    socket.on('start_round', (roomCode) => {
+    function handlePoliceGuess(roomCode, policeId, guessedPlayerId) {
         const room = rooms[roomCode];
-        const user = socketMap[socket.id];
-        if (!room || !user || room.hostPlayerId !== user.playerId) return;
+        if (!room || room.state !== 'playing' || room.policePlayerId !== policeId) return;
+
+        const thiefPlayer = room.players.find(p => p.id === room.thiefPlayerId);
+        const policePlayer = room.players.find(p => p.id === policeId);
+        const guessedPlayer = room.players.find(p => p.id === guessedPlayerId);
+
+        let isCorrect = (guessedPlayerId === room.thiefPlayerId);
+
+        // Calculate scores
+        room.players.forEach(player => {
+            if (player.role === 'Police') {
+                player.score += isCorrect ? 2 : 0;
+            } else if (player.role === 'Thief') {
+                player.score += isCorrect ? 0 : 1;
+            } else {
+                player.score += 1; // Others get 1 point for surviving a round
+            }
+        });
+
+        const publicPlayersData = room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            score: p.score,
+            role: p.role, // Reveal all roles now
+            isHost: p.isHost,
+            connected: p.connected
+        }));
+
+        io.to(roomCode).emit('round_ended', {
+            isCorrect,
+            guessedPlayerId,
+            thiefId: room.thiefPlayerId,
+            players: publicPlayersData
+        });
+        
+        // Change state to prevent further guesses but keep it ready for next round
+        room.state = 'round_ended';
+        broadcastGameState(roomCode);
+
+        // Automatically start the next round after 5 seconds
+        setTimeout(() => {
+            if (rooms[roomCode] && rooms[roomCode].state !== 'game_over') {
+                startRoundLogic(roomCode);
+            }
+        }, 5000);
+    }
+    
+    function startRoundLogic(roomCode) {
+        const room = rooms[roomCode];
+        if (!room) return;
         
         // Add bots if needed
         while (room.players.length < 3) {
@@ -194,6 +267,7 @@ io.on('connection', (socket) => {
         }
 
         room.state = 'playing';
+        room.roundNumber = (room.roundNumber || 0) + 1;
         
         // Distribute roles
         let availableRoles = getRolesForPlayerCount(room.players.length);
@@ -225,6 +299,7 @@ io.on('connection', (socket) => {
         room.players.forEach(player => {
             if (player.connected && !player.isBot) {
                 io.to(player.socketId).emit('round_started', {
+                    roundNumber: room.roundNumber,
                     myRole: player.role,
                     policeId: room.policePlayerId,
                     players: publicPlayersData
@@ -247,67 +322,29 @@ io.on('connection', (socket) => {
                 }
             }, 3000 + Math.random() * 2000); // 3-5 seconds delay
         }
-    });
-
-    // Helper for police guess (used by player and bot)
-    function handlePoliceGuess(roomCode, policePlayerId, guessedPlayerId) {
-        const room = rooms[roomCode];
-        if (!room || room.policePlayerId !== policePlayerId || room.state !== 'playing') return;
-
-        const isCorrect = (guessedPlayerId === room.thiefPlayerId);
-        
-        // Calculate scores
-        room.players.forEach(player => {
-            if (player.role === 'Police') {
-                player.score += isCorrect ? 2 : 0;
-            } else if (player.role === 'Thief') {
-                player.score += isCorrect ? 0 : 2;
-            } else {
-                player.score += 1;
-            }
-        });
-
-        room.state = 'round_end';
-
-        // Broadcast results
-        const results = {
-            isCorrect: isCorrect,
-            guessedPlayerId: guessedPlayerId,
-            thiefId: room.thiefPlayerId,
-            players: room.players // Reveal all roles and scores now
-        };
-
-        io.to(roomCode).emit('round_ended', results);
-        broadcastGameState(roomCode);
     }
+
+    socket.on('start_round', (roomCode) => {
+        const room = rooms[roomCode];
+        const user = socketMap[socket.id];
+        if (!room || !user || room.hostPlayerId !== user.playerId) return;
+        startRoundLogic(roomCode);
+    });
 
     socket.on('police_guess', (data) => {
         const { roomCode, guessedPlayerId } = data;
         const user = socketMap[socket.id];
-        if (user) {
-            handlePoliceGuess(roomCode, user.playerId, guessedPlayerId);
-        }
-    });
-
-    socket.on('next_round_lobby', (roomCode) => {
-         const room = rooms[roomCode];
-         const user = socketMap[socket.id];
-         if (!room || !user || room.hostPlayerId !== user.playerId) return;
-
-         room.state = 'lobby';
-         room.policePlayerId = null;
-         room.thiefPlayerId = null;
-         room.players.forEach(p => p.role = null);
-
-         broadcastGameState(roomCode);
+        if (!user) return;
+        
+        handlePoliceGuess(roomCode, user.playerId, guessedPlayerId);
     });
 
     socket.on('finish_game', (roomCode) => {
-         const room = rooms[roomCode];
-         const user = socketMap[socket.id];
-         if (!room || !user || room.hostPlayerId !== user.playerId) return;
+        const room = rooms[roomCode];
+        const user = socketMap[socket.id];
+        if (!room || !user || room.hostPlayerId !== user.playerId) return;
 
-         room.state = 'game_over';
+        room.state = 'game_over';
          
          // Determine winner(s)
          let maxScore = -1;

@@ -20,7 +20,6 @@ const screens = {
     landing: document.getElementById('landing-screen'),
     lobby: document.getElementById('lobby-screen'),
     game: document.getElementById('game-screen'),
-    roundEnd: document.getElementById('round-end-screen'),
     gameOver: document.getElementById('game-over-screen')
 };
 
@@ -42,13 +41,8 @@ const seatsContainer = document.getElementById('seats-container');
 const actionBanner = document.getElementById('action-banner');
 const gameLeaderboard = document.getElementById('game-leaderboard');
 
-// Round End
-const guessResultDisplay = document.getElementById('guess-result');
-const revealedRolesList = document.getElementById('revealed-roles-list');
-const endLeaderboard = document.getElementById('end-leaderboard');
-const btnNextRound = document.getElementById('btn-next-round');
-const btnFinishGame = document.getElementById('btn-finish-game');
-const endWaitingMsg = document.getElementById('end-waiting-msg');
+// Round End / Continuous
+const btnInGameFinish = document.getElementById('btn-in-game-finish');
 
 // Game Over
 const winnerNameDisplay = document.getElementById('winner-name');
@@ -103,49 +97,67 @@ function renderLeaderboard(players, containerElement) {
 
 // Role config mapping
 const ROLE_CONFIG = {
-    'Police': { icon: 'fa-shield-halved', class: 'role-police' },
-    'Thief': { icon: 'fa-user-ninja', class: 'role-thief' },
-    'King': { icon: 'fa-chess-king', class: 'role-king' },
-    'Queen': { icon: 'fa-chess-queen', class: 'role-queen' },
-    'Merchant': { icon: 'fa-coins', class: 'role-merchant' },
-    'Civilian': { icon: 'fa-user', class: 'role-civilian' }
+    'Police': { image: 'Police.png', class: 'role-police' },
+    'Thief': { image: 'Thief.png', class: 'role-thief' },
+    'King': { image: 'King.png', class: 'role-king' },
+    'Queen': { image: 'Queen.png', class: 'role-queen' },
+    'Merchant': { image: 'Merchant.png', class: 'role-merchant' },
+    'Civilian': { image: 'Civilian.jpg', class: 'role-civilian' }
 };
 
 // Audio Context for sound effects
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playAlertSound() {
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            audioCtx = new AudioContext();
+        }
     }
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(e => console.warn(e));
+    }
+}
+
+function playAlertSound() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(e => console.warn(e));
+    }
     
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-    oscillator.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
-    oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.3);
-    
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.5);
+    try {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+        oscillator.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.3);
+        
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {
+        console.warn("Audio playback failed", e);
+    }
 }
 
 // Event Listeners - Landing
 btnCreate.addEventListener('click', () => {
-    // Resume audio context on user interaction
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // Initialize audio context on user interaction
+    initAudio();
     myName = inputName.value.trim() || 'Player';
     socket.emit('create_room', { playerName: myName, playerId });
 });
 
 btnJoin.addEventListener('click', () => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    initAudio();
     const code = inputRoomCode.value.trim();
     if (!code) return showToast('Enter a room code');
     
@@ -162,11 +174,8 @@ btnStartGame.addEventListener('click', () => {
     socket.emit('start_round', currentRoomCode);
 });
 
-// Event Listeners - Round End & Game Over
-btnNextRound.addEventListener('click', () => {
-    socket.emit('next_round_lobby', currentRoomCode);
-});
-btnFinishGame.addEventListener('click', () => {
+// Event Listeners - In Game
+btnInGameFinish.addEventListener('click', () => {
     socket.emit('finish_game', currentRoomCode);
 });
 btnBackToLobby.addEventListener('click', () => {
@@ -174,6 +183,63 @@ btnBackToLobby.addEventListener('click', () => {
     isHost = false;
     showScreen('landing');
 });
+
+socket.on('connect', () => {
+    console.log('Connected to server');
+    socket.emit('request_available_rooms', playerId);
+});
+
+socket.on('available_rooms', (roomsList) => {
+    const container = document.getElementById('available-rooms-container');
+    const list = document.getElementById('available-rooms-list');
+    
+    if (!roomsList || roomsList.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    list.innerHTML = '';
+    
+    roomsList.forEach(r => {
+        const li = document.createElement('li');
+        li.style.display = 'flex';
+        li.style.justifyContent = 'space-between';
+        li.style.alignItems = 'center';
+        li.style.padding = '10px';
+        li.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+        
+        const isReconnect = r.hasReconnectSlot;
+        
+        let html = `<div>
+            <strong>Room ${r.roomCode}</strong> 
+            <span style="opacity:0.7; font-size:0.8rem; margin-left:10px;">${r.playerCount} Players • ${r.state}</span>
+        </div>`;
+        
+        if (isReconnect) {
+            html += `<button class="btn primary-btn glow-btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto;" onclick="rejoinRoom('${r.roomCode}', '${r.reconnectName}')">Reconnect</button>`;
+        } else if (r.state === 'lobby') {
+            html += `<button class="btn secondary-btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto;" onclick="joinAvailableRoom('${r.roomCode}')">Join</button>`;
+        } else {
+            html += `<span style="font-size:0.8rem; color:#f87171;">In Progress</span>`;
+        }
+        
+        li.innerHTML = html;
+        list.appendChild(li);
+    });
+});
+
+window.rejoinRoom = function(roomCode, reconnectName) {
+    initAudio();
+    inputName.value = reconnectName;
+    socket.emit('join_room', { roomCode, playerName: reconnectName, playerId });
+};
+
+window.joinAvailableRoom = function(roomCode) {
+    initAudio();
+    const myName = inputName.value.trim() || 'Player';
+    socket.emit('join_room', { roomCode, playerName: myName, playerId });
+};
 
 // Socket Events
 socket.on('room_updated', (room) => {
@@ -203,7 +269,7 @@ socket.on('room_updated', (room) => {
 });
 
 socket.on('round_started', (data) => {
-    const { myRole: role, policeId, players } = data;
+    const { roundNumber, myRole: role, policeId, players } = data;
     myRole = role;
     gameInProgress = true;
     
@@ -212,9 +278,29 @@ socket.on('round_started', (data) => {
     actionBanner.classList.remove('animate-in'); // Reset animation
     seatsContainer.innerHTML = '';
     renderLeaderboard(players, gameLeaderboard);
+    
+    if (isHost) {
+        btnInGameFinish.classList.remove('hidden');
+    } else {
+        btnInGameFinish.classList.add('hidden');
+    }
+
     showScreen('game');
 
-    // 1. Calculate positions
+    // Show Round Banner
+    actionBanner.classList.remove('animate-in');
+    void actionBanner.offsetWidth; // Trigger reflow
+    
+    actionBanner.innerHTML = `<h2 class="glow-text">ROUND ${roundNumber}</h2>`;
+    actionBanner.classList.remove('hidden');
+    actionBanner.classList.add('animate-in');
+    
+    // Delay slightly to let players see "Round X" before dealing
+    setTimeout(() => {
+        actionBanner.classList.add('hidden');
+        actionBanner.classList.remove('animate-in');
+        
+        // 1. Calculate positions
     // Local player is always at the bottom center
     const localPlayer = players.find(p => p.id === playerId);
     const otherPlayers = players.filter(p => p.id !== playerId);
@@ -247,7 +333,7 @@ socket.on('round_started', (data) => {
     });
 
     // 2. Deal Animation
-    setTimeout(() => {
+            setTimeout(() => {
         const cards = document.querySelectorAll('.card-container');
         cards.forEach(card => {
             // Remove the deal animation class to let it transition to its seat position
@@ -266,6 +352,9 @@ socket.on('round_started', (data) => {
             if (policeCard) policeCard.classList.add('flipped');
 
             // Show action banner with sound
+            actionBanner.classList.remove('animate-in');
+            void actionBanner.offsetWidth; // Trigger reflow
+            actionBanner.innerHTML = `<h2 class="glow-text">CATCH THE THIEF!</h2>`;
             actionBanner.classList.remove('hidden');
             actionBanner.classList.add('animate-in');
             playAlertSound();
@@ -288,6 +377,7 @@ socket.on('round_started', (data) => {
             }
         }, 800); // Wait for dealing animation to finish
     }, 100);
+    }, 2000); // 2 second delay for "Round X" banner
 });
 
 function createSeat(player, isLocal, knownRole, leftPercent, topPercent, isPolice) {
@@ -320,7 +410,7 @@ function createSeat(player, isLocal, knownRole, leftPercent, topPercent, isPolic
         const conf = ROLE_CONFIG[knownRole] || ROLE_CONFIG['Civilian'];
         cardContainer.classList.add(conf.class);
         cardFront.innerHTML = `
-            <i class="fa-solid ${conf.icon}"></i>
+            <img class="role-image" src="${conf.image}" alt="${knownRole}">
             <div class="role-title">${knownRole}</div>
         `;
     }
@@ -358,46 +448,29 @@ socket.on('round_ended', (results) => {
             // Remove previous classes
             cardContainer.className = `card-container flipped ${conf.class}`;
             cardFront.innerHTML = `
-                <i class="fa-solid ${conf.icon}"></i>
+                <img class="role-image" src="${conf.image}" alt="${p.role}">
                 <div class="role-title">${p.role}</div>
             `;
         }
     });
 
-    // 3. Wait 3 seconds, then show Round End screen
-    setTimeout(() => {
-        const thief = players.find(p => p.id === thiefId);
-        const guessed = players.find(p => p.id === guessedPlayerId);
-        
-        if (isCorrect) {
-            guessResultDisplay.textContent = `The Police guessed correctly! ${thief.name} was the Thief.`;
-            guessResultDisplay.style.color = 'var(--police-color)';
-        } else {
-            guessResultDisplay.textContent = `The Police guessed wrong! They guessed ${guessed ? guessed.name : 'Unknown'}, but the Thief was ${thief.name}.`;
-            guessResultDisplay.style.color = 'var(--thief-color)';
-        }
+    // 3. Show Result Banner & Update Leaderboard
+    const thief = players.find(p => p.id === thiefId);
+    
+    actionBanner.classList.remove('animate-in');
+    // Trigger reflow to restart animation
+    void actionBanner.offsetWidth; 
 
-        revealedRolesList.innerHTML = '';
-        players.forEach(p => {
-            const li = document.createElement('li');
-            li.innerHTML = `${p.name} <br> <span class="role-tag">${p.role}</span>`;
-            revealedRolesList.appendChild(li);
-        });
+    if (isCorrect) {
+        actionBanner.innerHTML = `<h2 class="glow-text" style="color: var(--police-color); text-shadow: 0 0 10px var(--police-color);">POLICE WON!</h2>`;
+    } else {
+        actionBanner.innerHTML = `<h2 class="glow-text" style="color: var(--thief-color); text-shadow: 0 0 10px var(--thief-color);">THIEF ESCAPED!</h2>`;
+    }
+    
+    actionBanner.classList.remove('hidden');
+    actionBanner.classList.add('animate-in');
 
-        renderLeaderboard(players, endLeaderboard);
-
-        if (isHost) {
-            btnNextRound.classList.remove('hidden');
-            btnFinishGame.classList.remove('hidden');
-            endWaitingMsg.classList.add('hidden');
-        } else {
-            btnNextRound.classList.add('hidden');
-            btnFinishGame.classList.add('hidden');
-            endWaitingMsg.classList.remove('hidden');
-        }
-
-        showScreen('roundEnd');
-    }, 3000);
+    renderLeaderboard(players, gameLeaderboard);
 });
 
 socket.on('game_finished', (data) => {
