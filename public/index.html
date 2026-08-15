@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thief and Police - Anti-Gravity Edition</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="particles-background"></div>
+
+    <div class="container">
+        <!-- Landing Screen -->
+        <section id="landing-screen" class="screen active">
+            <h1 class="glow-text title">THIEF & POLICE</h1>
+            <div class="glass-panel">
+                <input type="text" id="player-name" placeholder="Enter your name" class="glass-input" maxlength="15">
+                
+                <div class="action-buttons">
+                    <button id="btn-create-room" class="btn primary-btn glow-btn">Create Room</button>
+                    
+                    <div class="divider"><span>OR</span></div>
+                    
+                    <div class="join-group">
+                        <input type="text" id="room-code-input" placeholder="Room Code" class="glass-input small" maxlength="5">
+                        <button id="btn-join-room" class="btn secondary-btn">Join</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Lobby Screen -->
+        <section id="lobby-screen" class="screen">
+            <h2 class="glow-text subtitle">LOBBY</h2>
+            <div class="room-code-display">
+                <span>Room Code:</span>
+                <span id="display-room-code" class="glow-text">XXXXX</span>
+            </div>
+            
+            <div class="glass-panel flex-panel">
+                <div class="players-list-container">
+                    <h3>Players Connected (<span id="player-count">0</span>)</h3>
+                    <ul id="lobby-players-list" class="players-list">
+                        <!-- Players will be added here via JS -->
+                    </ul>
+                </div>
+                
+                <div class="lobby-controls">
+                    <p id="waiting-msg" class="info-text">Waiting for host to start...</p>
+                    <button id="btn-start-game" class="btn primary-btn glow-btn hidden">Start Game</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Game Screen (Rummy Table Layout) -->
+        <section id="game-screen" class="screen">
+            <div id="table-container">
+                <!-- Center Deck -->
+                <div id="deck-area">
+                    <div class="deck-card face-down"></div>
+                    <div class="deck-card face-down deck-offset-1"></div>
+                    <div class="deck-card face-down deck-offset-2"></div>
+                </div>
+                
+                <!-- Action Banner -->
+                <div id="action-banner" class="hidden">
+                    <h2 class="glow-text">CATCH THE THIEF!</h2>
+                </div>
+
+                <!-- Scoreboard (Collapsible/Fixed) -->
+                <div class="mini-scoreboard glass-panel">
+                    <h3>Scores</h3>
+                    <ul id="game-leaderboard" class="mini-leaderboard-list"></ul>
+                </div>
+
+                <!-- Players will be dynamically positioned here -->
+                <div id="seats-container"></div>
+            </div>
+        </section>
+
+        <!-- Round End Screen -->
+        <section id="round-end-screen" class="screen">
+            <h2 id="result-title" class="glow-text title">Round Over</h2>
+            
+            <div class="glass-panel results-panel">
+                <div id="guess-result" class="result-highlight">
+                    <!-- e.g., "The Police guessed correctly!" -->
+                </div>
+
+                <div class="reveal-roles">
+                    <h3>Roles Revealed</h3>
+                    <ul id="revealed-roles-list" class="roles-list">
+                        <!-- e.g. "John was the Thief" -->
+                    </ul>
+                </div>
+
+                <div class="updated-scores">
+                    <h3>Current Scores</h3>
+                    <ul id="end-leaderboard" class="leaderboard-list">
+                        <!-- Scores here -->
+                    </ul>
+                </div>
+
+                <div class="host-controls">
+                    <p id="end-waiting-msg" class="info-text">Waiting for host to continue...</p>
+                    <button id="btn-next-round" class="btn primary-btn glow-btn hidden">Next Round</button>
+                    <button id="btn-finish-game" class="btn secondary-btn hidden" style="margin-top: 10px;">Finish Game</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Game Over Screen -->
+        <section id="game-over-screen" class="screen">
+            <h2 class="glow-text title">GAME OVER</h2>
+            
+            <div class="glass-panel results-panel">
+                <div class="winner-announcement">
+                    <h3 class="glow-text">Winner!</h3>
+                    <h1 id="winner-name" class="role-text glow-text" style="color: #4ade80;">...</h1>
+                </div>
+
+                <div class="updated-scores">
+                    <h3>Final Scores</h3>
+                    <ul id="final-leaderboard" class="leaderboard-list">
+                        <!-- Scores here -->
+                    </ul>
+                </div>
+
+                <div class="host-controls">
+                    <button id="btn-back-to-lobby" class="btn primary-btn glow-btn">Back to Lobby</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Toast Notifications -->
+        <div id="toast-container"></div>
+    </div>
+
+    <!-- Socket.io and Client logic -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>
