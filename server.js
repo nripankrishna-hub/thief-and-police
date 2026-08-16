@@ -75,7 +75,7 @@ io.on('connection', (socket) => {
             const room = rooms[code];
             const hasReconnectSlot = room.players.some(p => p.id === clientPlayerId && !p.connected && !p.isBot);
             
-            if (room.state === 'lobby' || hasReconnectSlot) {
+            if (room.state === 'lobby' || room.state === 'playing') {
                 const isHost = room.hostPlayerId === clientPlayerId;
                 availableRooms.push({
                     roomCode: code,
@@ -106,6 +106,7 @@ io.on('connection', (socket) => {
             state: 'lobby', // 'lobby', 'playing', 'game_over'
             roundNumber: 0,
             players: [],
+            spectators: [],
             hostPlayerId: playerId,
             policePlayerId: null,
             thiefPlayerId: null
@@ -197,6 +198,47 @@ io.on('connection', (socket) => {
         
         if (typeof callback === 'function') callback({ success: true, roomCode: roomCode, players: room.players });
         broadcastGameState(roomCode);
+    });
+
+    socket.on('spectate_room', (data, callback) => {
+        const roomCode = data.roomCode.toUpperCase();
+        const { playerName, playerId } = data;
+
+        if (!rooms[roomCode] || rooms[roomCode].state !== 'playing') {
+            if (typeof callback === 'function') callback({ success: false, message: 'Room not available for spectating.' });
+            return;
+        }
+
+        const room = rooms[roomCode];
+        
+        // Add to spectators if not already
+        if (!room.spectators.find(s => s.id === playerId)) {
+            room.spectators.push({ id: playerId, name: playerName, socketId: socket.id });
+        }
+        
+        socket.join(roomCode);
+        // Note: We don't add to socketMap because we don't want them tracked as players for disconnect logic yet,
+        // or we could add them with a special flag. For chat, we need them in socketMap.
+        socketMap[socket.id] = { roomCode, playerId, isSpectator: true };
+        
+        if (typeof callback === 'function') callback({ success: true, roomCode: roomCode, players: room.players });
+
+        // Send current game state immediately
+        const publicPlayersData = room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            score: p.score,
+            isHost: p.isHost,
+            isPolice: p.role === 'Police',
+            connected: p.connected
+        }));
+
+        socket.emit('round_started', {
+            roundNumber: room.roundNumber,
+            myRole: 'Spectator',
+            policeId: room.policePlayerId,
+            players: publicPlayersData
+        });
     });
 
     function handlePoliceGuess(roomCode, policeId, guessedPlayerId) {
@@ -397,7 +439,8 @@ io.on('connection', (socket) => {
         const user = socketMap[socket.id];
         if (!user || !rooms[roomCode]) return;
         
-        const player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        let player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        if (!player) player = rooms[roomCode].spectators.find(p => p.id === user.playerId);
         if (!player) return;
 
         io.to(roomCode).emit('chat_message', {
@@ -411,7 +454,8 @@ io.on('connection', (socket) => {
         const user = socketMap[socket.id];
         if (!user || !rooms[roomCode]) return;
         
-        const player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        let player = rooms[roomCode].players.find(p => p.id === user.playerId);
+        if (!player) player = rooms[roomCode].spectators.find(p => p.id === user.playerId);
         if (!player) return;
 
         io.to(roomCode).emit('reaction', {

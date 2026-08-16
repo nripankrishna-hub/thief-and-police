@@ -300,6 +300,8 @@ socket.on('available_rooms', (roomsList) => {
             html += `<button class="btn primary-btn glow-btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto;" onclick="rejoinRoom('${r.roomCode}', '${r.reconnectName}')">Reconnect</button>`;
         } else if (r.state === 'lobby') {
             html += `<button class="btn secondary-btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto;" onclick="joinAvailableRoom('${r.roomCode}')">Join</button>`;
+        } else if (r.state === 'playing') {
+            html += `<button class="btn secondary-btn glow-btn" style="padding: 5px 10px; font-size: 0.8rem; width: auto; background-color: var(--secondary-color);" onclick="spectateRoom('${r.roomCode}')">Spectate</button>`;
         } else {
             html += `<span style="font-size:0.8rem; color:#f87171;">In Progress</span>`;
         }
@@ -317,6 +319,12 @@ window.rejoinRoom = function(roomCode, reconnectName) {
     initAudio();
     inputName.value = reconnectName;
     socket.emit('join_room', { roomCode, playerName: reconnectName, playerId });
+};
+
+window.spectateRoom = function(roomCode) {
+    initAudio();
+    const name = inputName.value.trim() || 'Spectator';
+    socket.emit('spectate_room', { roomCode, playerName: name, playerId });
 };
 
 window.joinAvailableRoom = function(roomCode) {
@@ -384,37 +392,54 @@ socket.on('round_started', (data) => {
         actionBanner.classList.add('hidden');
         actionBanner.classList.remove('animate-in');
         
-        // 1. Calculate positions
-    // Local player is always at the bottom center
-    const localPlayer = players.find(p => p.id === playerId);
-    const otherPlayers = players.filter(p => p.id !== playerId);
-    
-    // Create local player seat
-    createSeat(localPlayer, true, role, '50%', '85%', policeId === localPlayer.id);
+    // 1. Calculate positions
+    if (myRole === 'Spectator') {
+        // Render all players in a full circle around the center
+        const total = players.length;
+        const radiusX = 35;
+        const radiusY = 30;
+        const xCenter = 50;
+        const yCenter = 50;
+        
+        players.forEach((p, index) => {
+            const angle = (index / total) * Math.PI * 2 - (Math.PI / 2);
+            const xPos = xCenter + radiusX * Math.cos(angle);
+            const yPos = yCenter + radiusY * Math.sin(angle);
+            const isPolice = (p.id === policeId);
+            createSeat(p, false, isPolice ? 'Police' : null, `${xPos}%`, `${yPos}%`, isPolice);
+        });
+    } else {
+        // Local player is always at the bottom center
+        const localPlayer = players.find(p => p.id === playerId);
+        const otherPlayers = players.filter(p => p.id !== playerId);
+        
+        // Create local player seat
+        createSeat(localPlayer, true, role, '50%', '85%', policeId === localPlayer.id);
 
-    // Create other player seats along an arc (ellipse)
-    const totalOthers = otherPlayers.length;
-    const a = 28; // x-radius % (e.g. 50% +- 28%)
-    const b = 25; // y-radius % (e.g. 50% +- 25%)
-    const yCenter = 45;
-    const xCenter = 50;
-    
-    otherPlayers.forEach((p, index) => {
-        let angle;
-        if (totalOthers === 1) {
-            angle = Math.PI / 2;
-        } else if (totalOthers === 2) {
-            angle = Math.PI * 0.75 - (index * (Math.PI / 2));
-        } else {
-            angle = Math.PI - (index * (Math.PI / (totalOthers - 1)));
-        }
+        // Create other player seats along an arc (ellipse)
+        const totalOthers = otherPlayers.length;
+        const a = 28; // x-radius % (e.g. 50% +- 28%)
+        const b = 25; // y-radius % (e.g. 50% +- 25%)
+        const yCenter = 45;
+        const xCenter = 50;
+        
+        otherPlayers.forEach((p, index) => {
+            let angle;
+            if (totalOthers === 1) {
+                angle = Math.PI / 2;
+            } else if (totalOthers === 2) {
+                angle = Math.PI * 0.75 - (index * (Math.PI / 2));
+            } else {
+                angle = Math.PI - (index * (Math.PI / (totalOthers - 1)));
+            }
 
-        const xPos = xCenter + a * Math.cos(angle);
-        const yPos = yCenter - b * Math.sin(angle);
+            const xPos = xCenter + a * Math.cos(angle);
+            const yPos = yCenter - b * Math.sin(angle);
 
-        const isPolice = (p.id === policeId);
-        createSeat(p, false, isPolice ? 'Police' : null, `${xPos}%`, `${yPos}%`, isPolice);
-    });
+            const isPolice = (p.id === policeId);
+            createSeat(p, false, isPolice ? 'Police' : null, `${xPos}%`, `${yPos}%`, isPolice);
+        });
+    }
 
     // 2. Deal Animation
             setTimeout(() => {
