@@ -657,9 +657,12 @@ h1, h2, h3 {
 
 /* Mobile Layout Adjustments */
 @media (max-width: 800px) {
+    body {
+        overflow-y: auto;
+    }
+
     .game-layout {
         flex-direction: column;
-        overflow-y: auto;
     }
     
     .game-table-column {
