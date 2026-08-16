@@ -443,6 +443,11 @@ socket.on('round_started', (data) => {
             actionBanner.classList.add('animate-in');
             playAlertSound();
 
+            setTimeout(() => {
+                actionBanner.classList.remove('animate-in');
+                actionBanner.classList.add('hidden');
+            }, 2000);
+
             // 4. Enable guessing if local player is Police
             if (myRole === 'Police') {
                 const opponentSeats = document.querySelectorAll('.seat:not(.seat-local)');
